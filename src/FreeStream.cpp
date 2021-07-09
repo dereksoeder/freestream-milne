@@ -15,53 +15,20 @@
 
 float getX(int is, parameters params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  float DX = params.DX;
-
-  int ix = is / (DIM_Y * DIM_ETA);
-  int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-  int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
-
-  float xmin = (-1.0) * ((float)(DIM_X-1) / 2.0) * DX;
-  float x = (float)ix * DX  + xmin;
-
-  return x;
+  float xmin = (-1.0) * ((float)(params.DIM_X-1) / 2.0) * params.DX;
+  return xmin + static_cast<float>(is % params.DIM_X) * params.DX;
 }
 
 float getY(int is, parameters params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  float DY = params.DY;
-
-  int ix = is / (DIM_Y * DIM_ETA);
-  int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-  int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
-
-  float ymin = (-1.0) * ((float)(DIM_Y-1) / 2.0) * DY;
-  float y = (float)iy * DY  + ymin;
-
-  return y;
+  float ymin = (-1.0) * ((float)(params.DIM_Y-1) / 2.0) * params.DY;
+  return ymin + static_cast<float>((is / params.DIM_X) % params.DIM_Y) * params.DY;
 }
 
 float getEta(int is, parameters params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  float DETA = params.DETA;
-
-  int ix = is / (DIM_Y * DIM_ETA);
-  int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-  int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
-
-  float etamin = (-1.0) * ((float)(DIM_ETA-1) / 2.0) * DETA;
-  float eta = (float)ieta * DETA  + etamin;
-
-  return eta;
+  float etamin = (-1.0) * ((float)(params.DIM_ETA-1) / 2.0) * params.DETA;
+  return etamin + static_cast<float>((is / params.DIM_X / params.DIM_Y) % params.DIM_ETA) * params.DETA;
 }
 
 float linearInterp3D(float x0, float x1, float x2,
@@ -131,10 +98,10 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
     for (int iy = 0; iy < DIM_Y; iy++)
     {
       //note that internal indexing in gsl is tranposed!
-      int is = (DIM_Y * ix) + iy;
+      int is = ix + (DIM_X * iy);
       x_vals[ix] = getX(is, params);
       y_vals[iy] = getY(is, params);
-      int is_gsl = (DIM_X * iy) + ix;
+      int is_gsl = is;  // maybe it's no longer transposed relative to our coordinates, since now we're y-major too?
       density_vals[is_gsl] = density[is][0];
     }
   }
@@ -156,9 +123,9 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
   #pragma omp parallel for
   for (int is = 0; is < DIM; is++)
   {
-    int ix = is / (DIM_Y * DIM_ETA);
-    int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-    int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+    int ix = (is % DIM_X);
+    int iy = ((is / DIM_X) % DIM_Y);
+    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     float x = (float)ix * DX  + xmin;
     float y = (float)iy * DY  + ymin;
@@ -219,10 +186,10 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
           //2+1D routine
           if (DIM_ETA == 1)
           {
-            int is_new_11 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * (int)iy_new_f) + (int)ieta_new_f;
-            int is_new_21 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * (int)iy_new_f) + (int)ieta_new_f;
-            int is_new_12 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * ( (int)iy_new_f + 1) ) + (int)ieta_new_f;
-            int is_new_22 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * ( (int)iy_new_f + 1) ) + (int)ieta_new_f;
+            int is_new_11 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_21 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_12 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_22 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
 
             float a11 = density[is_new_11][irap];
             float a21 = density[is_new_21][irap];
@@ -249,14 +216,14 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
 
           else if ( (DIM_ETA > 1) && (ieta_new_f >= 1) && (ieta_new_f < DIM_ETA - 1) )
           {
-            int is_new_000 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * (int)iy_new_f) + (int)ieta_new_f;
-            int is_new_100 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * (int)iy_new_f) + (int)ieta_new_f;
-            int is_new_010 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * ( (int)iy_new_f + 1) ) + (int)ieta_new_f;
-            int is_new_110 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * ( (int)iy_new_f + 1) ) + (int)ieta_new_f;
-            int is_new_001 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * (int)iy_new_f) + ( (int)ieta_new_f + 1 );
-            int is_new_101 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * (int)iy_new_f) + ( (int)ieta_new_f + 1 );
-            int is_new_011 = (DIM_Y * DIM_ETA * (int)ix_new_f) + (DIM_ETA * ( (int)iy_new_f + 1) ) + ( (int)ieta_new_f + 1 );
-            int is_new_111 = (DIM_Y * DIM_ETA * ( (int)ix_new_f + 1) ) + (DIM_ETA * ( (int)iy_new_f + 1) ) + ( (int)ieta_new_f + 1 );
+            int is_new_000 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_100 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_010 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_110 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            int is_new_001 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
+            int is_new_101 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
+            int is_new_011 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
+            int is_new_111 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
 
             float a000 = density[is_new_000][irap];
             float a100 = density[is_new_100][irap];
@@ -291,7 +258,7 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
   float SIGMA = params.SIGMA;
   int DIM = params.DIM;
   float TAU0 = params.TAU0;
-  //int DIM_X = params.DIM_X;
+  int DIM_X = params.DIM_X;
   int DIM_Y = params.DIM_Y;
   int DIM_ETA = params.DIM_ETA;
 
@@ -309,8 +276,8 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
   {
     for (int is = 0; is < DIM; is++)
     {
-      int ix = is / (DIM_Y);
-      int iy = (is - (DIM_Y * ix));
+      int ix = (is % DIM_X);
+      int iy = ((is / DIM_X) % DIM_Y);
 
       for (int irap = 0; irap < DIM_RAP; irap++)
       {
@@ -325,9 +292,9 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
   {
     for (int is = 0; is < DIM; is++)
     {
-      int ix = is / (DIM_Y * DIM_ETA);
-      int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-      int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+      int ix = (is % DIM_X);
+      int iy = ((is / DIM_X) % DIM_Y);
+      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       float eta = (float)ieta * DETA  + etamin;
 
@@ -354,7 +321,7 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
 {
   float SIGMA_B = params.SIGMA_B;
   int DIM = params.DIM;
-  //int DIM_X = params.DIM_X;
+  int DIM_X = params.DIM_X;
   int DIM_Y = params.DIM_Y;
   int DIM_ETA = params.DIM_ETA;
 
@@ -370,9 +337,9 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
 
   for (int is = 0; is < DIM; is++)
   {
-    int ix = is / (DIM_Y * DIM_ETA);
-    int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-    int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+    int ix = (is % DIM_X);
+    int iy = ((is / DIM_X) % DIM_Y);
+    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     float eta = (float)ieta * DETA  + etamin;
 

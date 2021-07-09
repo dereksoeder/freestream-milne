@@ -60,7 +60,7 @@ void calculateHypertrigTable(float ****hypertrigTable, parameters params)
 
 void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float ****hypertrigTable, parameters params)
 {
-  //int DIM_X = params.DIM_X;
+  int DIM_X = params.DIM_X;
   int DIM_Y = params.DIM_Y;
   int DIM_ETA = params.DIM_ETA;
   int DIM_RAP = params.DIM_RAP;
@@ -78,9 +78,9 @@ void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float 
     #pragma omp parallel for
     for (int is = 0; is < DIM; is++) //the column packed index for x, y and z
     {
-      int ix = is / (DIM_Y * DIM_ETA);
-      int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-      int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+      int ix = (is % DIM_X);
+      int iy = ((is / DIM_X) % DIM_Y);
+      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       for (int irap = 0; irap < DIM_RAP; irap++)
       {
@@ -109,7 +109,7 @@ void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float 
 
 void calculateBaryonCurrent(float **baryonCurrent, float ***shiftedChargeDensity, float ****hypertrigTable, parameters params)
 {
-  //int DIM_X = params.DIM_X;
+  int DIM_X = params.DIM_X;
   int DIM_Y = params.DIM_Y;
   int DIM_ETA = params.DIM_ETA;
   int DIM_RAP = params.DIM_RAP;
@@ -124,9 +124,9 @@ void calculateBaryonCurrent(float **baryonCurrent, float ***shiftedChargeDensity
     #pragma omp parallel for
     for (int is = 0; is < DIM; is++) //the column packed index for x, y and z
     {
-      int ix = is / (DIM_Y * DIM_ETA);
-      int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-      int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+      int ix = (is % DIM_X);
+      int iy = ((is / DIM_X) % DIM_Y);
+      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       for (int irap = 0; irap < DIM_RAP; irap++)
       {
@@ -263,10 +263,6 @@ void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVe
             if (REGULATE)
             {
               //cut out unreasonable values of flow
-              //int stride_x = 2*DIM_Y * DIM_ETA;
-              //int stride_y = 2*DIM_ETA;
-              //if (abs(flowVelocity[1][is]) > 6.0) flowVelocity[1][is] = 0.25 * (flowVelocity[1][is+stride_x] + flowVelocity[1][is-stride_x] + flowVelocity[1][is+stride_y] + flowVelocity[1][is-stride_y]);
-              //if (abs(flowVelocity[2][is]) > 6.0) flowVelocity[2][is] = 0.25 * (flowVelocity[2][is+stride_x] + flowVelocity[2][is-stride_x] + flowVelocity[2][is+stride_y] + flowVelocity[2][is-stride_y]);
               if (flowVelocity[1][is] > 10.0) {flowVelocity[1][is] = 10.0;}
               if (flowVelocity[2][is] > 10.0) {flowVelocity[2][is] = 10.0;}
               if (flowVelocity[1][is] < -10.0) {flowVelocity[1][is] = -10.0;}
@@ -305,9 +301,9 @@ void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVe
     #pragma omp parallel for
     for (int is = 0; is < DIM; is++)
     {
-      int ix = is / (DIM_Y * DIM_ETA);
-      int iy = (is - (DIM_Y * DIM_ETA * ix))/ DIM_ETA;
-      int ieta = is - (DIM_Y * DIM_ETA * ix) - (DIM_ETA * iy);
+      int ix = (is % DIM_X);
+      int iy = ((is / DIM_X) % DIM_Y);
+      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
       float y = (float)iy * DY  - ((float)(DIM_Y-1)) / 2.0 * DY;
@@ -407,11 +403,11 @@ void calculateThermalVorticityTensor(float *energyDensity, float **flowVelocity,
   {
     for (int iy = 1; iy < DIM_Y - 1; iy++)
     {
-      int is = (DIM_Y) * ix + iy;
-      int is_px = (DIM_Y) * (ix + 1) + iy;
-      int is_mx = (DIM_Y) * (ix - 1) + iy;
-      int is_py = (DIM_Y) * ix + (iy + 1);
-      int is_my = (DIM_Y) * ix + (iy - 1);
+      int is = ix + (DIM_X * iy);
+      int is_px = (ix + 1) + (DIM_X * iy);
+      int is_mx = (ix - 1) + (DIM_X * iy);
+      int is_py = ix + (DIM_X * (iy + 1));
+      int is_my = ix + (DIM_Y * (iy - 1));
 
       // omega_{\mu\nu} = 1/2 ( d_{\nu} \beta{\mu} - d{\mu} \beta_{\nu})
       //antisymmetric tensor, calculate 6 components (upper triangular)
@@ -455,7 +451,7 @@ void calculateThermalVorticityTensor(float *energyDensity, float **flowVelocity,
       thermalVelocityVector[0][is] = beta_t;
       thermalVelocityVector[1][is] = beta_x;
       thermalVelocityVector[2][is] = beta_y;
-      thermalVelocityVector[3][is] = beta_n; 
+      thermalVelocityVector[3][is] = beta_n;
 
       float beta_t_px = u_t_px / T_px ;
       float beta_x_px = u_x_px / T_px ;

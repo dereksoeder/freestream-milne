@@ -31,8 +31,8 @@ float linearInterp2D(float x0, float x1,
   return result;
 }
 
-int linearIndex(int ix, int iy, int iz, int dimy, int dimz)
+int linearIndex(int ix, int iy, int iz, int dimx, int dimy)
 {
-  int is = (dimy * dimz * ix) + (dimz * iy) + iz;
+  int is = ix + (dimx * iy) + (dimx * dimy * iz);
   return is;
 }

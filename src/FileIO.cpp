@@ -35,7 +35,7 @@ void writeScalarToFile(float *var, char name[255], parameters params)
         float eta = (float)ieta * DETA  - (((float)(DIM_ETA-1)) / 2.0 * DETA);
         eta = DETA * roundf(eta / DETA);
 
-        int is = (DIM_Y * DIM_ETA) * ix + (DIM_ETA) * iy + ieta; //the column packed index spanning x, y, z
+        int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
 
         myfile << x << " " << y << " " << eta << " " << var[is] << "\n";
       }
@@ -71,7 +71,7 @@ void writeVectorToFile(float **var, char name[255], int idx, parameters params)
         float eta = (float)ieta * DETA  - (((float)(DIM_ETA-1)) / 2.0 * DETA);
         eta = DETA * roundf(eta / DETA);
 
-        int is = (DIM_Y * DIM_ETA) * ix + (DIM_ETA) * iy + ieta; //the column packed index spanning x, y, z
+        int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
 
         myfile << x << " " << y << " " << eta << " " << var[idx][is] << "\n";
       }
@@ -98,7 +98,7 @@ void writeScalarToFileProjection(float *var, char name[255], parameters params)
     for (int ix = 0; ix < DIM_X; ix++)
     {
       int ieta = (DIM_ETA - 1) / 2; // at eta = 0
-      int is = (DIM_Y * DIM_ETA) * ix + (DIM_ETA) * iy + ieta; //the column packed index spanning x, y, eta
+      int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, eta
       myfile << var[is] << " "; //different columns for x values
     }
     myfile << "\n"; // different rows correspond to different y values
@@ -122,7 +122,7 @@ void writeVectorToFileProjection(float **var, char name[255], int idx, parameter
     for (int ix = 0; ix < DIM_X; ix++)
     {
       int ieta = (DIM_ETA - 1) / 2; //at eta = 0
-      int is = (DIM_Y * DIM_ETA) * ix + (DIM_ETA) * iy + ieta; //the column packed index spanning x, y, z
+      int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
       myfile << var[idx][is] << " "; //different columns for x values
     }
     myfile << "\n"; // different rows correspond to different y values
@@ -157,7 +157,7 @@ void readDensityFile(float *density, char name[255], parameters params)
     int ix = (int)round((x - xmin) / DX);
     int iy = (int)round((y - ymin) / DY);
     int ieta = (int)round((eta - etamin) / DETA);
-    int is = (DIM_Y * DIM_ETA * ix) + (DIM_ETA * iy) + ieta;
+    int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta);
     density[is] = value;
   }
   infile.close();

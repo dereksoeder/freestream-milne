@@ -563,7 +563,7 @@ calculateBulkInvReynolds(pressure, bulkPressure, R_Pi_Inv, params);
 calculateShearInvReynolds(energyDensity, pressure, shearTensor, R_pimunu_Inv, params);
 writeScalarToFileProjection(R_Pi_Inv, (char *)"R_Pi_Inv_projection", params);
 writeScalarToFileProjection(R_pimunu_Inv, (char *)"R_pimunu_Inv_projection", params);
-int ctr = (DIM_Y * DIM_ETA * ((DIM_X - 1) / 2)) + (DIM_ETA * ((DIM_Y - 1) / 2)) + ((DIM_ETA - 1) / 2);
+int ctr = ((DIM_X - 1) / 2) + (DIM_X * ((DIM_Y - 1) / 2)) + (DIM_X * DIM_Y * ((DIM_ETA - 1) / 2));
 printf("R_Pi_Inv at center : %f \n", R_Pi_Inv[ctr]);
 printf("R_pimunu_Inv at center : %f \n", R_pimunu_Inv[ctr]);
 free(R_Pi_Inv);
