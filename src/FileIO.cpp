@@ -163,21 +163,24 @@ void readDensityFile(float *density, char name[255], parameters params)
   infile.close();
 }
 
-void readInParameters(struct parameters &params)
+void readInParameters(struct parameters &params, const char * inputPath = NULL)
 {
   char dummyChar[255];
   int dummyInt;
   //long dummyLong;
   float dummyFloat;
 
+  if (inputPath == NULL)
+  {
+    inputPath = "freestream_input";
+  }
+
   FILE *fileIn;
-  std::stringstream paramsStream;
-  paramsStream << "freestream_input";
-  fileIn = fopen(paramsStream.str().c_str(),"r");
+  fileIn = fopen(inputPath,"r");
 
   if (fileIn == NULL)
   {
-    printf("Couldn't open parameters.dat . Using default values!\n");
+    printf("Couldn't open '%s' to read parameters. Using default values!\n", inputPath);
   }
 
   else

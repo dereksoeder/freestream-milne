@@ -1,7 +1,10 @@
 #include "FreestreamMilne.cpp"
 
-int main(void)
+int main(int argc, const char ** argv)
 {
+  const char * inputPath = NULL;
+  if (argc > 1) inputPath = argv[1];
+
   //Declare an instance of FREESTREAMMILNE class
   FREESTREAMMILNE fsmilne;
 
@@ -40,7 +43,7 @@ int main(void)
   fsmilne.initialize_from_vector(init_e);
   */
   //run the freestreaming evolution
-  fsmilne.run_freestream_milne();
+  fsmilne.run_freestream_milne(inputPath);
 
   /*
   //grab the final hydro vectors to pass to another module
@@ -71,4 +74,6 @@ int main(void)
     printf("e [ %d ] = %f \n", i, final_e[i]);
   }
   */
+
+  return 0;
 }

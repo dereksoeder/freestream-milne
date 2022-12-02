@@ -32,7 +32,7 @@ class FREESTREAMMILNE {
     FREESTREAMMILNE();
     ~FREESTREAMMILNE();
 
-    int run_freestream_milne();
+    int run_freestream_milne(const char * inputPath = NULL);
 
     // IS THIS VARIABLE NECESSARY
     int gridSize; //the total number of grid points in x, y, and eta : used for vector memory allocation
@@ -136,7 +136,7 @@ void FREESTREAMMILNE::output_to_vectors(std::vector<double> &energy_density_out,
 }
 
 //where the magic happens
-int FREESTREAMMILNE::run_freestream_milne() {
+int FREESTREAMMILNE::run_freestream_milne(const char * inputPath) {
 
 float hbarc = 0.197326938;
 
@@ -145,7 +145,7 @@ if(PRINT_SCREEN) printf("Welcome to freestream-milne\n");
 //declare parameter struct
 struct parameters params;
 
-//set default parameters in case of missing freestream_input file
+//set default parameters in case of missing input file
 params.OUTPUTFORMAT = 2;
 params.BARYON = 0;
 params.IC_ENERGY = 5;
@@ -170,8 +170,8 @@ params.E_FREEZE = 1.7;
 params.VISCOUS_MATCHING = 1;
 params.E_DEP_FS = 0;
 
-//read in chosen parameters from freestream_input if such a file exists
-readInParameters(params);
+//read in chosen parameters from input file if such a file exists
+readInParameters(params, inputPath);
 
 //define some useful combinations
 params.DIM = params.DIM_X * params.DIM_Y * params.DIM_ETA;
@@ -255,10 +255,10 @@ else if (params.IC_ENERGY == 5)
   //converting units of energy density from GeV / fm^3 to fm^(-4)
   if(PRINT_SCREEN) printf("Reading energy density from initial energy density vector\n");
 
-  //check that the vector has the same dimensions as defined in freestream_input!
+  //check that the vector has the same dimensions as defined in input file!
   if ( params.DIM != init_energy_density.size() )
     {
-      printf("Grid dimension of input vector does not match freestream_input file! \n");
+      printf("Grid dimension of input vector does not match input file! \n");
       printf("Vector size : %d , DIM = %d \n", init_energy_density.size(), params.DIM);
       exit(-1);
     }
