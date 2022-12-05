@@ -1,5 +1,5 @@
 //trigTable is a table with 10 rows for ten combinations or p^(mu)p_(nu) normalized by the energy
-#pragma once
+#include <stddef.h>
 #include <stdio.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_blas.h>
@@ -8,129 +8,152 @@
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_sort_vector.h>
 //#include <math.h>
-#include "Parameter.h"
-#include "EquationOfState.cpp"
+#include "LandauMatch.h"
+#include "EquationOfState.h"
 
-void calculateHypertrigTable(float ****hypertrigTable, parameters params)
+void calculateHypertrigTable(float ****hypertrigTable, const parameters & params)
 {
-  int DIM_RAP = params.DIM_RAP;
-  int DIM_PHIP = params.DIM_PHIP;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM_RAP = params.DIM_RAP;
+  size_t DIM_PHIP = params.DIM_PHIP;
+  size_t DIM_ETA = params.DIM_ETA;
   float DRAP = params.DRAP;
   float DETA = params.DETA;
   float TAU = params.TAU;
 
+  float cosphip[DIM_PHIP];  // precompute these to avoid redundant cos and sin calls
+  float sinphip[DIM_PHIP];
+  for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
+  {
+    float phip = float(iphip) * (2.0 * M_PI) / float(DIM_PHIP);
+    cosphip[iphip] = cos(phip);
+    sinphip[iphip] = sin(phip);
+  }
+
   float rapmin = (-1.0) * ((float)(DIM_RAP-1) / 2.0) * DRAP;
   float etamin = (-1.0) * ((float)(DIM_ETA-1) / 2.0) * DETA;
-  #pragma omp parallel for
-  for (int irap = 0; irap < DIM_RAP; irap++)
+  for (size_t irap = 0; irap < DIM_RAP; irap++)
   {
     //float rap = (float)irap * DRAP + rapmin;
 
-    for (int iphip = 0; iphip < DIM_PHIP; iphip++)
+    for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
     {
-      float phip = float(iphip) * (2.0 * M_PI) / float(DIM_PHIP);
+      float cphip = cosphip[iphip];
+      float sphip = sinphip[iphip];
 
-      for (int ieta = 0; ieta < DIM_ETA; ieta++)
+      for (size_t ieta = 0; ieta < DIM_ETA; ieta++)
       {
         float eta = (float)ieta * DETA  + etamin;
         if (DIM_ETA == 1) eta = 0.0;
 
         //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
-        float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+        //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+        float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
         float rap = eta + tan((M_PI / 2.0) * w );
         if (DIM_ETA == 1) rap = 0.0;
         //try evaluating at values of rapidity y centered around y ~= eta
         //if (DIM_ETA > 1) rap = rap + eta;
 
+        float coshrapeta = cosh(rap - eta);
+        float tanhrapeta = tanh(rap - eta);
+
         hypertrigTable[0][irap][iphip][ieta] = 1.0; //p^tau, p^tau component
-        hypertrigTable[1][irap][iphip][ieta] = cos(phip) / cosh(rap - eta); //p^tau, p^x
-        hypertrigTable[2][irap][iphip][ieta] = sin(phip) / cosh(rap - eta); //p^tau, p^y
-        hypertrigTable[3][irap][iphip][ieta] = (1.0 / TAU) * tanh(rap - eta); //p^tau, p^eta
-        hypertrigTable[4][irap][iphip][ieta] = (cos(phip) * cos(phip)) / (cosh(rap - eta) * cosh(rap - eta)); //p^x, p^x
-        hypertrigTable[5][irap][iphip][ieta] = (cos(phip) * sin(phip)) / (cosh(rap - eta) * cosh(rap - eta)); //p^x, p^y
-        hypertrigTable[6][irap][iphip][ieta] = (1.0 / TAU) * (cos(phip) * tanh(rap - eta)) / cosh(rap - eta); //p^x, p^eta
-        hypertrigTable[7][irap][iphip][ieta] = (sin(phip) * sin(phip)) / (cosh(rap - eta) * cosh(rap - eta)); //p^y, p^y
-        hypertrigTable[8][irap][iphip][ieta] = (1.0 / TAU) * (sin(phip) * tanh(rap - eta)) / cosh(rap - eta); //p^y, p^eta
-        hypertrigTable[9][irap][iphip][ieta] = (1.0 / (TAU * TAU)) * tanh(rap - eta) * tanh(rap - eta); //p^eta, p^eta
+        hypertrigTable[1][irap][iphip][ieta] = cphip / coshrapeta; //p^tau, p^x
+        hypertrigTable[2][irap][iphip][ieta] = sphip / coshrapeta; //p^tau, p^y
+        hypertrigTable[3][irap][iphip][ieta] = (1.0 / TAU) * tanhrapeta; //p^tau, p^eta
+        hypertrigTable[4][irap][iphip][ieta] = (cphip * cphip) / (coshrapeta * coshrapeta); //p^x, p^x
+        hypertrigTable[5][irap][iphip][ieta] = (cphip * sphip) / (coshrapeta * coshrapeta); //p^x, p^y
+        hypertrigTable[6][irap][iphip][ieta] = (1.0 / TAU) * (cphip * tanhrapeta) / coshrapeta; //p^x, p^eta
+        hypertrigTable[7][irap][iphip][ieta] = (sphip * sphip) / (coshrapeta * coshrapeta); //p^y, p^y
+        hypertrigTable[8][irap][iphip][ieta] = (1.0 / TAU) * (sphip * tanhrapeta) / coshrapeta; //p^y, p^eta
+        hypertrigTable[9][irap][iphip][ieta] = (1.0 / (TAU * TAU)) * tanhrapeta * tanhrapeta; //p^eta, p^eta
       }
     }
   }
 }
 
-void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float ****hypertrigTable, parameters params)
+void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float ****hypertrigTable, const parameters & params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  int DIM_RAP = params.DIM_RAP;
-  int DIM_PHIP = params.DIM_PHIP;
-  int DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
+  size_t DIM_RAP = params.DIM_RAP;
+  size_t DIM_PHIP = params.DIM_PHIP;
+  size_t DIM = params.DIM;
   //float DRAP = params.DRAP;
   float TAU = params.TAU;
   //float TAU = params.TAU;
   float weight_rap;
 
+  float jacobian[DIM_RAP];  // precompute these to avoid 10 * DIM_ETA * DIM_Y * DIM_X redundant computations
+  for (size_t irap = 0; irap < DIM_RAP; irap++)
+  {
+    //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
+    //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+    //jacobian[irap] = (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.995 / float(DIM_RAP - 1));
+    float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // changed for consistency with hypertrigTable
+    jacobian[irap] = (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.95 / float(DIM_RAP - 1));
+  }
+
   float d_phip = (2.0 * M_PI) / float(DIM_PHIP);
 
-  for (int ivar = 0; ivar < 10; ivar++)
+  #pragma omp parallel for
+  for (size_t ivar = 0; ivar < 10; ivar++)
   {
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++) //the column packed index for x, y and z
-    {
-      int ix = (is % DIM_X);
-      int iy = ((is / DIM_X) % DIM_Y);
-      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+   float * stcompon = stressTensor[ivar];
 
-      for (int irap = 0; irap < DIM_RAP; irap++)
+   for (size_t is = 0, ieta = 0; ieta < DIM_ETA; ieta++)
+   {
+    for (size_t iy = 0; iy < DIM_Y; iy++)
+    {
+     for (size_t ix = 0; ix < DIM_X; is++, ix++)
+     {
+      float sum = 0.;
+      for (size_t irap = 0; irap < DIM_RAP; irap++)
       {
         //try trapezoid rule for rapidity integral
         //if (irap == 0 || irap == DIM_RAP - 1) weight_rap = DRAP / 2.0;
         //else weight_rap = DRAP;
 
-        //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
-        float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
-        float jacobian = (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.995 / float(DIM_RAP - 1));
-
-        for (int iphip = 0; iphip < DIM_PHIP; iphip++)
+        for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
         {
           //check convergence!
           // T^(mu,nu) = int deta int dphip G^(mu,nu)
           //#pragma omp simd (+:stressTensor_tmp)
-          if (DIM_ETA == 1) stressTensor[ivar][is] += shiftedDensity[is][irap][iphip] * hypertrigTable[ivar][irap][iphip][ieta];
-          else stressTensor[ivar][is] += shiftedDensity[is][irap][iphip] * hypertrigTable[ivar][irap][iphip][ieta] * jacobian;
+          if (DIM_ETA == 1) sum += shiftedDensity[is][irap][iphip] * hypertrigTable[ivar][irap][iphip][ieta];
+          else sum += shiftedDensity[is][irap][iphip] * hypertrigTable[ivar][irap][iphip][ieta] * jacobian[irap];
         }
       }
-      if (DIM_ETA == 1) stressTensor[ivar][is] = stressTensor[ivar][is] * d_phip / TAU; //catch the special case of 2+1D FS (solution in PRC 91, 064906)
-      else stressTensor[ivar][is] = stressTensor[ivar][is] * d_phip; //multiply by common differential factor once
-    }
-  }
+      if (DIM_ETA == 1) stcompon[is] = sum * d_phip / TAU; //catch the special case of 2+1D FS (solution in PRC 91, 064906)
+      else stcompon[is] = sum * d_phip; //multiply by common differential factor once
+     } //for(ix)
+    } //for(iy)
+   } //for(ieta)
+  } //for(ivar)
 }
 
-void calculateBaryonCurrent(float **baryonCurrent, float ***shiftedChargeDensity, float ****hypertrigTable, parameters params)
+void calculateBaryonCurrent(float **baryonCurrent, float ***shiftedChargeDensity, float ****hypertrigTable, const parameters & params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  int DIM_RAP = params.DIM_RAP;
-  int DIM_PHIP = params.DIM_PHIP;
-  int DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
+  size_t DIM_RAP = params.DIM_RAP;
+  size_t DIM_PHIP = params.DIM_PHIP;
+  size_t DIM = params.DIM;
   float DRAP = params.DRAP;
 
   float d_phip = (2.0 * M_PI) / float(DIM_PHIP);
 
-  for (int ivar = 0; ivar < 4; ivar++)
+  for (size_t ivar = 0; ivar < 4; ivar++)
   {
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++) //the column packed index for x, y and z
+    for (size_t is = 0; is < DIM; is++) //the column packed index for x, y and z
     {
-      int ix = (is % DIM_X);
-      int iy = ((is / DIM_X) % DIM_Y);
-      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+      size_t ix = (is % DIM_X);
+      size_t iy = ((is / DIM_X) % DIM_Y);
+      size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
-      for (int irap = 0; irap < DIM_RAP; irap++)
+      for (size_t irap = 0; irap < DIM_RAP; irap++)
       {
-        for (int iphip = 0; iphip < DIM_PHIP; iphip++)
+        for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
         {
           //rather than gauss quadrature, just doing a elementary Riemann sum here; check convergence!
           // T^(mu,nu) = int deta int dphip G^(mu,nu)
@@ -142,12 +165,12 @@ void calculateBaryonCurrent(float **baryonCurrent, float ***shiftedChargeDensity
   }
 }
 
-void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVelocity, parameters params)
+void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVelocity, const parameters & params)
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
@@ -157,8 +180,8 @@ void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVe
 
   float gamma_max = 100.0; // the maximum allowed flow boost factor when searching for eigenvectors
 
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  //#pragma omp parallel for  // would be good to parallelize this loop, but it's going to take some careful work (and note that GSL might already have some multithreading of its own)
+  for (size_t is = 0; is < DIM; is++)
   {
     gsl_matrix *Tmunu; //T^(mu,nu) with two contravariant indices; we need to lower an index
     //using the metric to find the eigenvectors of T^(mu)_(nu) with one contravariant and one contravariant index
@@ -291,19 +314,18 @@ void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVe
   gsl_matrix_complex_free(eigen_vectors);
   gsl_vector_complex_free(eigen_values);
 
-  } // for (int is; is < DIM; ...)
+  } // for (size_t is; is < DIM; ...)
 
   //try scaling the flow velocity by a smooth profile which goes to zero after some finite radius
   /*
   if (REGULATE)
   {
     printf("Regulating flow velocity profile in dilute regions \n");
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
-      int ix = (is % DIM_X);
-      int iy = ((is / DIM_X) % DIM_Y);
-      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+      size_t ix = (is % DIM_X);
+      size_t iy = ((is / DIM_X) % DIM_Y);
+      size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
       float y = (float)iy * DY  - ((float)(DIM_Y-1)) / 2.0 * DY;
@@ -325,12 +347,11 @@ void solveEigenSystem(float **stressTensor, float *energyDensity, float **flowVe
   */
 
 } //solveEigenSystem()
-void calculateBulkPressure(float **stressTensor, float *energyDensity, float *pressure, float *bulkPressure, parameters params)
+void calculateBulkPressure(float **stressTensor, float *energyDensity, float *pressure, float *bulkPressure, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     // PI = -1/3 * (T^(mu)_(mu) - epsilon) - p
     // T^(mu)_(mu) = T^(0,0) - T^(1,1) - T^(2,2) - (TAU^2)T^(3,3)
@@ -338,12 +359,11 @@ void calculateBulkPressure(float **stressTensor, float *energyDensity, float *pr
     bulkPressure[is] = (-1.0/3.0) * (a - energyDensity[is]) - pressure[is];
   }
 }
-void calculateShearViscTensor(float **stressTensor, float *energyDensity, float **flowVelocity, float *pressure, float *bulkPressure, float **shearTensor, parameters params)
+void calculateShearViscTensor(float **stressTensor, float *energyDensity, float **flowVelocity, float *pressure, float *bulkPressure, float **shearTensor, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     // pi^(mu,nu) = T^(mu,nu) - epsilon * u^(mu)u^(nu) + (P + PI) * (g^(mu,nu) - u^(mu)u^(nu))
     //calculate ten components : upper triangular part
@@ -363,24 +383,22 @@ void calculateShearViscTensor(float **stressTensor, float *energyDensity, float 
 }
 
 // n_B = u^(mu)j_(mu)
-void calculateBaryonDensity(float *baryonDensity, float **baryonCurrent, float **flowVelocity, parameters params)
+void calculateBaryonDensity(float *baryonDensity, float **baryonCurrent, float **flowVelocity, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     baryonDensity[is] = (flowVelocity[0][is] * baryonCurrent[0][is]) - (flowVelocity[1][is] * baryonCurrent[1][is]) - (flowVelocity[2][is] * baryonCurrent[2][is]) - (TAU * TAU * flowVelocity[3][is] * baryonCurrent[3][is]);
   }
 }
 // V^(mu) = j^(mu) - n_B * u^(mu)
-void calculateBaryonDiffusion(float **baryonDiffusion, float **baryonCurrent, float *baryonDensity, float **flowVelocity, parameters params)
+void calculateBaryonDiffusion(float **baryonDiffusion, float **baryonCurrent, float *baryonDensity, float **flowVelocity, const parameters & params)
 {
-  int DIM = params.DIM;
-  for (int ivar = 0; ivar < 4; ivar++)
+  size_t DIM = params.DIM;
+  for (size_t ivar = 0; ivar < 4; ivar++)
   {
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
       baryonDiffusion[ivar][is] = baryonCurrent[ivar][is] - (baryonDensity[is] * flowVelocity[ivar][is]);
     }
@@ -388,26 +406,25 @@ void calculateBaryonDiffusion(float **baryonDiffusion, float **baryonCurrent, fl
 }
 
 
-void calculateThermalVorticityTensor(float *energyDensity, float **flowVelocity, float **thermalVelocityVector, float **thermalVorticityTensor, parameters params)
+void calculateThermalVorticityTensor(float *energyDensity, float **flowVelocity, float **thermalVelocityVector, float **thermalVorticityTensor, const parameters & params)
 {
 
   // omega_{\mu\nu} = 1/2 ( d_{\nu} \beta{\mu} - d{\mu} \beta_{\nu})
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
   float dx = params.DX;
   float dy = params.DY;
   float tau = params.TAU;
-  #pragma omp parallel for
-  for (int ix = 1; ix < DIM_X - 1; ix++)
+  for (size_t ix = 1; ix < DIM_X - 1; ix++)
   {
-    for (int iy = 1; iy < DIM_Y - 1; iy++)
+    for (size_t iy = 1; iy < DIM_Y - 1; iy++)
     {
-      int is = ix + (DIM_X * iy);
-      int is_px = (ix + 1) + (DIM_X * iy);
-      int is_mx = (ix - 1) + (DIM_X * iy);
-      int is_py = ix + (DIM_X * (iy + 1));
-      int is_my = ix + (DIM_Y * (iy - 1));
+      size_t is = ix + (DIM_X * iy);
+      size_t is_px = (ix + 1) + (DIM_X * iy);
+      size_t is_mx = (ix - 1) + (DIM_X * iy);
+      size_t is_py = ix + (DIM_X * (iy + 1));
+      size_t is_my = ix + (DIM_Y * (iy - 1));
 
       // omega_{\mu\nu} = 1/2 ( d_{\nu} \beta{\mu} - d{\mu} \beta_{\nu})
       //antisymmetric tensor, calculate 6 components (upper triangular)

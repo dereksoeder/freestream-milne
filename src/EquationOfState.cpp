@@ -1,16 +1,15 @@
-#pragma once
-#include "Parameter.h"
+#include <stddef.h>
 #include <math.h>
+#include "EquationOfState.h"
 
-void calculatePressure(float *energyDensity, float *baryonDensity, float *pressure, parameters params)
+void calculatePressure(float *energyDensity, float *baryonDensity, float *pressure, const parameters & params)
 {
   int EOS_TYPE = params.EOS_TYPE;
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   //conformal eqn of state
   if (EOS_TYPE == 1)
   {
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
       pressure[is] = energyDensity[is] / 3.0;
     }
@@ -47,8 +46,7 @@ void calculatePressure(float *energyDensity, float *baryonDensity, float *pressu
     float b11 = 5.928138360995685e-11;
     float b12 = 3.2581066229887368e-18;
 
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
       float e = energyDensity[is];
       float e1 = e;
@@ -71,8 +69,7 @@ void calculatePressure(float *energyDensity, float *baryonDensity, float *pressu
   //import lattice qcd tables for finite baryon density and interpolate
   else if (EOS_TYPE == 3)
   {
-    #pragma omp parallel for
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
       pressure[is] = 0.0; //fix this! just a placeholder for an interpolation of tables
     }

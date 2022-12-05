@@ -1,5 +1,14 @@
 set (SOURCES_LIB
-    FreestreamMilne.cpp    
+    EquationOfState.cpp
+    FileIO.cpp
+    FreeStream.cpp
+    FreestreamMilne.cpp
+    FSUtilities.cpp
+    HydroValidity.cpp
+    InitialConditions.cpp
+    LandauMatch.cpp
+    Memoryf.cpp
+    FSUtilities.cpp
     )
 
 set (SOURCES

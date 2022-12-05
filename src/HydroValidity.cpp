@@ -1,16 +1,15 @@
 //trigTable is a table with 10 rows for ten combinations or p^(mu)p_(nu) normalized by the energy
-#pragma once
+#include <stddef.h>
 #include <stdio.h>
 //#include <math.h>
-#include "Parameter.h"
+#include "HydroValidity.h"
 #include "FSConfig.h"
 
-void calculateBulkInvReynolds(float *pressure, float *bulkPressure, float *R_Pi_Inv, parameters params)
+void calculateBulkInvReynolds(float *pressure, float *bulkPressure, float *R_Pi_Inv, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     float p;
     if (pressure[is] < 1.0e-5) p = 1.0e-5;
@@ -19,13 +18,12 @@ void calculateBulkInvReynolds(float *pressure, float *bulkPressure, float *R_Pi_
   }
 }
 
-void calculateShearInvReynolds(float *energyDensity, float *pressure, float **shearTensor, float *R_pimunu_Inv, parameters params)
+void calculateShearInvReynolds(float *energyDensity, float *pressure, float **shearTensor, float *R_pimunu_Inv, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU = params.TAU;
   float tau2 = TAU*TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     float num = shearTensor[0][is]*shearTensor[0][is] - 2.0 * (shearTensor[1][is]*shearTensor[1][is] + shearTensor[2][is]*shearTensor[2][is] + tau2*shearTensor[3][is]*shearTensor[3][is])
     + (shearTensor[4][is]*shearTensor[4][is] + shearTensor[7][is]*shearTensor[7][is] + tau2*tau2*shearTensor[9][is]*shearTensor[9][is])
@@ -38,12 +36,11 @@ void calculateShearInvReynolds(float *energyDensity, float *pressure, float **sh
   }
 }
 
-void calculate_pi_dot_u(float **flowVelocity, float **shearTensor, float *pi_dot_u_tau, float *pi_dot_u_x, float *pi_dot_u_y, float *pi_dot_u_eta, parameters params)
+void calculate_pi_dot_u(float **flowVelocity, float **shearTensor, float *pi_dot_u_tau, float *pi_dot_u_x, float *pi_dot_u_y, float *pi_dot_u_eta, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float tau = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     //contravariant flow u^mu
     float ut = flowVelocity[0][is];
@@ -76,12 +73,11 @@ void calculate_pi_dot_u(float **flowVelocity, float **shearTensor, float *pi_dot
   }
 }
 
-void calculate_pi_mu_mu(float **shearTensor, float *pi_mu_mu, parameters params)
+void calculate_pi_mu_mu(float **shearTensor, float *pi_mu_mu, const parameters & params)
 {
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float tau = params.TAU;
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
 
     //contravariant shear stress

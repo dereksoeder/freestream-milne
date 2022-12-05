@@ -1,7 +1,8 @@
-#pragma once
+#include <stddef.h>
 #include <math.h>
-#include "Parameter.h"
+#include "FreeStream.h"
 #include "FSConfig.h"
+#include "FSUtilities.h"
 #include <iostream>
 
 #include <gsl/gsl_math.h>
@@ -9,66 +10,44 @@
 #include <gsl/gsl_spline2d.h>
 #include <gsl/gsl_errno.h>
 
+#ifndef _OPENMP  // from MUSIC/src/init.cxx
+    #define omp_get_thread_num() 0
+    #define omp_get_max_threads() 1
+#else
+    #include <omp.h>
+#endif
+
 #ifdef _OPENACC
 #include <accelmath.h>
 #endif
 
-float getX(int is, parameters params)
+float getX(size_t is, const parameters & params)
 {
   float xmin = (-1.0) * ((float)(params.DIM_X-1) / 2.0) * params.DX;
   return xmin + static_cast<float>(is % params.DIM_X) * params.DX;
 }
 
-float getY(int is, parameters params)
+float getY(size_t is, const parameters & params)
 {
   float ymin = (-1.0) * ((float)(params.DIM_Y-1) / 2.0) * params.DY;
   return ymin + static_cast<float>((is / params.DIM_X) % params.DIM_Y) * params.DY;
 }
 
-float getEta(int is, parameters params)
+float getEta(size_t is, const parameters & params)
 {
   float etamin = (-1.0) * ((float)(params.DIM_ETA-1) / 2.0) * params.DETA;
   return etamin + static_cast<float>((is / params.DIM_X / params.DIM_Y) % params.DIM_ETA) * params.DETA;
 }
 
-float linearInterp3D(float x0, float x1, float x2,
-                      float a000, float a100, float a010, float a001,
-                      float a110, float a101, float a011, float a111)
-{
-  float result = 0.0;
-  result = ( (1-x0) * (1-x1) * (1-x2) * a000 )
-            + ( (x0) * (1-x1) * (1-x2) * a100 )
-            + ( (1-x0) * (x1) * (1-x2) * a010 )
-            + ( (1-x0) * (1-x1) * (x2) * a001 )
-            + ( (x0) * (x1) * (1-x2) * a110 )
-            + ( (x0) * (1-x1) * (x2) * a101 )
-            + ( (1-x0) * (x1) * (x2) * a011 )
-            + ( (x0) * (x1) * (x2)  * a111 );
-
-  return result;
-}
-
-float linearInterp2D(float x0, float x1,
-                      float a00, float a10, float a01, float a11)
-{
-  float result = 0.0;
-  result = ( (1-x0) * (1-x1) * a00 )
-            + ( (x0) * (1-x1) * a10 )
-            + ( (1-x0) * (x1) * a01 )
-            + ( (x0) * (x1) * a11 );
-
-  return result;
-}
-
 //#pragma acc routine //build a copy of function to run on device
-void freeStream(float **density, float ***shiftedDensity, parameters params)
+void freeStream(float **density, float ***shiftedDensity, const parameters & params)
 {
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
-  int DIM_RAP = params.DIM_RAP;
-  int DIM_PHIP = params.DIM_PHIP;
-  int DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
+  size_t DIM_RAP = params.DIM_RAP;
+  size_t DIM_PHIP = params.DIM_PHIP;
+  size_t DIM = params.DIM;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
@@ -93,17 +72,26 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
   double density_vals[DIM_X * DIM_Y];
 
   //fill arrays with values of coordinates and density values
-  for (int ix = 0; ix < DIM_X; ix++)
+  for (size_t ix = 0; ix < DIM_X; ix++)
   {
-    for (int iy = 0; iy < DIM_Y; iy++)
+    for (size_t iy = 0; iy < DIM_Y; iy++)
     {
       //note that internal indexing in gsl is tranposed!
-      int is = ix + (DIM_X * iy);
+      size_t is = ix + (DIM_X * iy);
       x_vals[ix] = getX(is, params);
       y_vals[iy] = getY(is, params);
-      int is_gsl = is;  // maybe it's no longer transposed relative to our coordinates, since now we're y-major too?
+      size_t is_gsl = is;  // maybe it's no longer transposed relative to our coordinates, since now we're y-major too?
       density_vals[is_gsl] = density[is][0];
     }
+  }
+
+  double cosphip[DIM_PHIP];  // precompute these to avoid DIM_ETA * DIM_Y * DIM_X * DIM_RAP redundant cos and sin calls
+  double sinphip[DIM_PHIP];
+  for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
+  {
+    float phip = float(iphip) * (2.0 * M_PI) / float(DIM_PHIP);
+    cosphip[iphip] = cos(phip);
+    sinphip[iphip] = sin(phip);
   }
 
   double x_min_interp = x_vals[0];
@@ -115,22 +103,48 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
   size_t nx = sizeof(x_vals) / sizeof(x_vals[0]);
   size_t ny = sizeof(y_vals) / sizeof(y_vals[0]);
   gsl_spline2d *spline = gsl_spline2d_alloc(T, nx, ny);
-  gsl_interp_accel *xacc = gsl_interp_accel_alloc();
-  gsl_interp_accel *yacc = gsl_interp_accel_alloc();
+
+  int naccs = omp_get_max_threads();  // allocate one interpolation accelerator per thread now, since it might not be safe to allocate/free them concurrently
+  gsl_interp_accel * xaccs[naccs];    //   (accelerators are currently only used in the boost-invariant case, so since we're threading over eta, there won't be any concurrent use; still, let's leave it in case things change some day)
+  gsl_interp_accel * yaccs[naccs];
+  for (int iacc = 0; iacc < naccs; iacc++)
+  {
+    xaccs[iacc] = gsl_interp_accel_alloc();
+    yaccs[iacc] = gsl_interp_accel_alloc();
+  }
+
   gsl_spline2d_init(spline, x_vals, y_vals, density_vals, nx, ny);
   std::cout << "Bicubic splines initialized..."<< "\n";
 
-  #pragma omp parallel for
-  for (int is = 0; is < DIM; is++)
-  {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+ // separated the original `is` single-index loop into three loops, so that the (outermost) `ieta` loop can be parallelized,
+ //  so threads do more work for the overhead (not optimal though if DIM_ETA << number of threads)
 
+ #pragma omp parallel for
+ for (size_t ieta = 0; ieta < DIM_ETA; ieta++)
+ {
+  size_t is = ieta * DIM_X * DIM_Y;
+
+  gsl_interp_accel * xacc = nullptr;
+  gsl_interp_accel * yacc = nullptr;
+
+  int iacc = omp_get_thread_num();  // this should be unique among all threads currently running--we don't want two threads modifying the same accelerator at the same time
+  if ((iacc >= 0) && (iacc < naccs))
+  {
+    xacc = xaccs[iacc];
+    yacc = yaccs[iacc];
+  }
+
+  float eta = (float)ieta * DETA  + etamin;
+
+  for (size_t iy = 0; iy < DIM_Y; iy++)
+  {
+   float y = (float)iy * DY  + ymin;
+
+   for (size_t ix = 0; ix < DIM_X; is++, ix++)
+   {
     float x = (float)ix * DX  + xmin;
-    float y = (float)iy * DY  + ymin;
-    float eta = (float)ieta * DETA  + etamin;
-    for (int irap = 0; irap < DIM_RAP; irap++)
+
+    for (size_t irap = 0; irap < DIM_RAP; irap++)
     {
       //float rap = (float)irap * DRAP + rapmin;
 
@@ -138,27 +152,35 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
       //if (DIM_ETA > 1) rap = rap + eta;
 
       //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
-      float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+      //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+      float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least sinh and cosh won't return nan (float is limited to ~3.4E+38)
       float rap = eta + tan((M_PI / 2.0) * w );
 
-      for (int iphip = 0; iphip < DIM_PHIP; iphip++)
+      float eta_new;
+      if (DIM_ETA == 1)
       {
-        float phip = float(iphip) * (2.0 * M_PI) / float(DIM_PHIP);
+        eta_new = 0.0;
+      }
+      else if (DIM_ETA > 1)
+      {
+        eta_new = asinh( (TAU / TAU0) * sinh(eta - rap) ) + rap; //old formula works
+      }
 
-        //float eta_new = asinh( (TAU0 / TAU) * sinh(eta - rap) ) + rap;
+      float coshrapeta    = cosh(rap - eta);
+      float coshrapetanew = cosh(rap - eta_new);
 
-        float eta_new, x_new, y_new; //the shifted coordinates
+      for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
+      {
+        float x_new, y_new; //the shifted coordinates
         if (DIM_ETA == 1)
         {
-          eta_new = 0.0;
-          x_new   = x - cos(phip) * DTAU;
-          y_new   = y - sin(phip) * DTAU;
+          x_new = x - cosphip[iphip] * DTAU;
+          y_new = y - sinphip[iphip] * DTAU;
         }
         else if (DIM_ETA > 1)
         {
-          eta_new = asinh( (TAU / TAU0) * sinh(eta - rap) ) + rap; //old formula works
-          x_new   = x - cos(phip) * (TAU * cosh(rap - eta_new) - TAU0 * cosh(rap - eta));
-          y_new   = y - sin(phip) * (TAU * cosh(rap - eta_new) - TAU0 * cosh(rap - eta));
+          x_new = x - cosphip[iphip] * (TAU * coshrapetanew - TAU0 * coshrapeta);
+          y_new = y - sinphip[iphip] * (TAU * coshrapetanew - TAU0 * coshrapeta);
         }
 
         //get fractions for linear interpolation routine
@@ -186,10 +208,10 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
           //2+1D routine
           if (DIM_ETA == 1)
           {
-            int is_new_11 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_21 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_12 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_22 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
+            size_t is_new_11 = (size_t)ix_new_f + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_21 = ( (size_t)ix_new_f + 1) + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_12 = (size_t)ix_new_f + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_22 = ( (size_t)ix_new_f + 1) + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
 
             float a11 = density[is_new_11][irap];
             float a21 = density[is_new_21][irap];
@@ -216,14 +238,14 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
 
           else if ( (DIM_ETA > 1) && (ieta_new_f >= 1) && (ieta_new_f < DIM_ETA - 1) )
           {
-            int is_new_000 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_100 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_010 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_110 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * (int)ieta_new_f);
-            int is_new_001 = (int)ix_new_f + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
-            int is_new_101 = ( (int)ix_new_f + 1) + (DIM_X * (int)iy_new_f) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
-            int is_new_011 = (int)ix_new_f + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
-            int is_new_111 = ( (int)ix_new_f + 1) + (DIM_X * ( (int)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (int)ieta_new_f + 1) );
+            size_t is_new_000 = (size_t)ix_new_f + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_100 = ( (size_t)ix_new_f + 1) + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_010 = (size_t)ix_new_f + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_110 = ( (size_t)ix_new_f + 1) + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * (size_t)ieta_new_f);
+            size_t is_new_001 = (size_t)ix_new_f + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * ( (size_t)ieta_new_f + 1) );
+            size_t is_new_101 = ( (size_t)ix_new_f + 1) + (DIM_X * (size_t)iy_new_f) + (DIM_X * DIM_Y * ( (size_t)ieta_new_f + 1) );
+            size_t is_new_011 = (size_t)ix_new_f + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (size_t)ieta_new_f + 1) );
+            size_t is_new_111 = ( (size_t)ix_new_f + 1) + (DIM_X * ( (size_t)iy_new_f + 1) ) + (DIM_X * DIM_Y * ( (size_t)ieta_new_f + 1) );
 
             float a000 = density[is_new_000][irap];
             float a100 = density[is_new_100][irap];
@@ -241,28 +263,33 @@ void freeStream(float **density, float ***shiftedDensity, parameters params)
 
           shiftedDensity[is][irap][iphip] = interp;
         }
-      } //for (int iphip = 0; iphip < DIM_PHIP; iphip++)
-    } //for (int irap = 0; irap < DIM_RAP; irap++)
-  } //for (int is = 0; is < DIM; is++)
+      } //for (size_t iphip = 0; iphip < DIM_PHIP; iphip++)
+    } //for (size_t irap = 0; irap < DIM_RAP; irap++)
+   } //for (size_t ix = 0; ix < DIM_X; is++, ix++)
+  } //for (size_t iy = 0; iy < DIM_Y; iy++)
+ } //for (size_t ieta = 0; ieta < DIM_ETA; ieta++)
 
   gsl_spline2d_free(spline);
-  gsl_interp_accel_free(xacc);
-  gsl_interp_accel_free(yacc);
+  for (int iacc = 0; iacc < naccs; iacc++)
+  {
+    gsl_interp_accel_free(xaccs[iacc]);
+    gsl_interp_accel_free(yaccs[iacc]);
+  }
 }
 
 //this creates the initial G^(tau,tau) function, a function of spatial coordinates and rapidity
 //in the special case if 2+1D, this calculates F^(tau,tau) in the notation of (PRC 91, 064906)
 //rapidity dependence is determined by the assumption for rapidity dependence of the initial distribution function
-void convertInitialDensity(float *initialEnergyDensity, float **density, parameters params)
+void convertInitialDensity(float *initialEnergyDensity, float **density, const parameters & params)
 {
   float SIGMA = params.SIGMA;
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float TAU0 = params.TAU0;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
 
-  int DIM_RAP = params.DIM_RAP;
+  size_t DIM_RAP = params.DIM_RAP;
   //float DRAP = params.DRAP;
   float DETA = params.DETA;
 
@@ -274,12 +301,12 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
 
   if (DIM_ETA == 1) //catch the special case of 2+1D freestreaming; note DIM_RAP must also be 1 ! the normalization with SIGMA -> 0 does not generalize?
   {
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
-      int ix = (is % DIM_X);
-      int iy = ((is / DIM_X) % DIM_Y);
+      size_t ix = (is % DIM_X);
+      size_t iy = ((is / DIM_X) % DIM_Y);
 
-      for (int irap = 0; irap < DIM_RAP; irap++)
+      for (size_t irap = 0; irap < DIM_RAP; irap++)
       {
         //density[is][irap] = initialEnergyDensity[is] * (TAU0 / (2.0 * M_PI)); //this is initial F^(tau,tau) in the notation of (PRC 91, 064906)
         density[is][irap] = initialEnergyDensity[is] / (2.0 * M_PI); //this is initial F^(tau,tau) in the notation of (PRC 91, 064906)
@@ -290,15 +317,15 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
 
   else
   {
-    for (int is = 0; is < DIM; is++)
+    for (size_t is = 0; is < DIM; is++)
     {
-      int ix = (is % DIM_X);
-      int iy = ((is / DIM_X) % DIM_Y);
-      int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+      size_t ix = (is % DIM_X);
+      size_t iy = ((is / DIM_X) % DIM_Y);
+      size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
       float eta = (float)ieta * DETA  + etamin;
 
-      for (int irap = 0; irap < DIM_RAP; irap++)
+      for (size_t irap = 0; irap < DIM_RAP; irap++)
       {
         //float rap = (float)irap * DRAP + rapmin;
 
@@ -306,7 +333,8 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
         //rap = rap + eta;
 
         //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
-        float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+        //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
+        float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
         float rap = eta + tan((M_PI / 2.0) * w );
 
         float rap_factor = cosh(eta - rap) * cosh(eta - rap) * exp( (-1.0) * (eta - rap) * (eta - rap) / (2.0 * SIGMA * SIGMA) );
@@ -317,15 +345,15 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, paramet
 }
 //this creates the initial J^(tau) function, a function of spatial coordinates and rapidity
 //rapidity dependence is determined by the assumption for rapidity dependence of the initial baryon distribution function
-void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDensity, parameters params)
+void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDensity, const parameters & params)
 {
   float SIGMA_B = params.SIGMA_B;
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
 
-  int DIM_RAP = params.DIM_RAP;
+  size_t DIM_RAP = params.DIM_RAP;
   float DRAP = params.DRAP;
   float DETA = params.DETA;
 
@@ -335,15 +363,15 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
   float rapmin = (-1.0) * ((float)(DIM_RAP-1) / 2.0) * DRAP;
   float etamin = (-1.0) * ((float)(DIM_ETA-1) / 2.0) * DETA;
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     float eta = (float)ieta * DETA  + etamin;
 
-    for (int irap = 0; irap < DIM_RAP; irap++)
+    for (size_t irap = 0; irap < DIM_RAP; irap++)
     {
       float rap = (float)irap * DRAP + rapmin;
       float rap_factor = cosh(eta - rap) * exp((-1.0) * (eta - rap) * (eta - rap) / (SIGMA_B * SIGMA_B));
@@ -353,14 +381,14 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
   }
 }
 
-float getEnergyDependentTau(float *initialEnergyDensity, parameters params)
+float getEnergyDependentTau(float *initialEnergyDensity, const parameters & params)
 {
   float tau_R = params.TAU_R;
   float e_R = params.E_R;
   float alpha = params.ALPHA;
   float hbarc = 0.197326938;
 
-  int DIM = params.DIM;
+  size_t DIM = params.DIM;
   float dx = params.DX;
   float dy = params.DY;
 
@@ -369,7 +397,7 @@ float getEnergyDependentTau(float *initialEnergyDensity, parameters params)
   float numerator = 0.0;
   float denominator = 0.0;
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
     float eps = initialEnergyDensity[is]; // Multiply by hbarc for same units as e_R
     numerator += (eps*eps);

@@ -1,38 +1,40 @@
-#pragma once
+#include <stddef.h>
 #include <math.h>
 #include <stdlib.h>
 #include <fstream>
 #include <string>
-#include "Parameter.h"
+#include "InitialConditions.h"
 
+#ifndef THETA_FUNCTION
 #define THETA_FUNCTION(X) ((float)X < (float)0 ? (float)0 : (float)1)
+#endif
 
-void initializeZero(float *density, parameters params)
+void initializeZero(float *density, const parameters & params)
 {
-  int DIM = params.DIM;
-  for (int is = 0; is < DIM; is++)
+  size_t DIM = params.DIM;
+  for (size_t is = 0; is < DIM; is++)
   {
     density[is] = 0.0;
   }
 }
 
-void initializeGauss(float *density, float b, parameters params) // b is the variance ('spherically' symmetric)
+void initializeGauss(float *density, float b, const parameters & params) // b is the variance ('spherically' symmetric)
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
 
   float e0 = 500.0; //energy norm factor in fm^(-4) : roughly 500 MeV Temperature
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     //does it work for even number of points?
     float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
@@ -43,23 +45,23 @@ void initializeGauss(float *density, float b, parameters params) // b is the var
   }
 }
 
-void initializeEllipticalGauss(float *density, float bx, float by, float beta, parameters params) // bx is the x variance etc...
+void initializeEllipticalGauss(float *density, float bx, float by, float beta, const parameters & params) // bx is the x variance etc...
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
 
   float e0 = 500.0; //energy norm factor in fm^(-4) : roughly 500 MeV Temperature
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     //does it work for even number of points?
     float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
@@ -70,23 +72,23 @@ void initializeEllipticalGauss(float *density, float bx, float by, float beta, p
   }
 }
 
-void initializeMCGauss(float * density, float b, parameters params)
+void initializeMCGauss(float * density, float b, const parameters & params)
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
 
   float e0 = 500.0; //energy norm factor in fm^(-4) : roughly 500 MeV Temperature
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     //does it work for even number of points?
     float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
@@ -97,23 +99,23 @@ void initializeMCGauss(float * density, float b, parameters params)
   }
 }
 
-void initializeEllipticalMCGauss(float *density, float bx, float by, float beta, parameters params) // bx is the x variance etc...
+void initializeEllipticalMCGauss(float *density, float bx, float by, float beta, const parameters & params) // bx is the x variance etc...
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
 
   float e0 = 500.0; //energy norm factor in fm^(-4) : roughly 500 MeV Temperature
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     //does it work for even number of points?
     float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
@@ -124,14 +126,14 @@ void initializeEllipticalMCGauss(float *density, float bx, float by, float beta,
   }
 }
 
-void readEnergyDensitySuperMCBlock(float *density, parameters params)
+void readEnergyDensitySuperMCBlock(float *density, const parameters & params)
 {
   float lower_tolerance = 1.0e-3;
 
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float ETA_WIDTH = params.ETA_WIDTH;
   float ETA_FLAT = params.ETA_FLAT;
   float DETA = params.DETA;
@@ -142,14 +144,14 @@ void readEnergyDensitySuperMCBlock(float *density, parameters params)
   superMCFile.open("initial_profiles/ed.dat");
   if (superMCFile.is_open())
   {
-    for (int ix = 0; ix < DIM_X; ix++)
+    for (size_t ix = 0; ix < DIM_X; ix++)
     {
-      for (int iy = 0; iy < DIM_Y; iy++)
+      for (size_t iy = 0; iy < DIM_Y; iy++)
       {
         superMCFile >> temp;
-        for (int ieta = 0; ieta < DIM_ETA; ieta++) //copy the same value for all eta, then we will multiply by eta dependent function
+        for (size_t ieta = 0; ieta < DIM_ETA; ieta++) //copy the same value for all eta, then we will multiply by eta dependent function
         {
-          int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
+          size_t is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
           density[is] = temp;
         }
       }
@@ -164,11 +166,11 @@ void readEnergyDensitySuperMCBlock(float *density, parameters params)
   superMCFile.close();
 
   //now multiply by an eta-dependent profile; etaWidth is the width of the eta profile
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     float eta = (float)ieta * DETA  - ((float)(DIM_ETA-1)) / 2.0 * DETA;
     //here we use a the same profile as GPU-VH (see arXiv:1608.06577v1 p. 38)
@@ -178,14 +180,14 @@ void readEnergyDensitySuperMCBlock(float *density, parameters params)
   }
 }
 
-void readEnergyDensityTRENTOBlock(float *density, parameters params)
+void readEnergyDensityTRENTOBlock(float *density, const parameters & params)
 {
   float lower_tolerance = 1.0e-3;
 
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float ETA_WIDTH = params.ETA_WIDTH;
   float ETA_FLAT = params.ETA_FLAT;
   float DETA = params.DETA;
@@ -199,14 +201,14 @@ void readEnergyDensityTRENTOBlock(float *density, parameters params)
     //skip the eight line (l) header
     std::string line;
     for (int l = 0; l < 12; l++) getline(superMCFile, line);
-    for (int iy = 0; iy < DIM_Y; iy++)
+    for (size_t iy = 0; iy < DIM_Y; iy++)
     {
-      for (int ix = 0; ix < DIM_X; ix++)
+      for (size_t ix = 0; ix < DIM_X; ix++)
       {
         superMCFile >> temp;
-        for (int ieta = 0; ieta < DIM_ETA; ieta++) //copy the same value for all eta, then we will multiply by eta dependent function
+        for (size_t ieta = 0; ieta < DIM_ETA; ieta++) //copy the same value for all eta, then we will multiply by eta dependent function
         {
-          int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
+          size_t is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
           density[is] = temp;
         }
       }
@@ -221,11 +223,11 @@ void readEnergyDensityTRENTOBlock(float *density, parameters params)
   superMCFile.close();
 
   //now multiply by an eta-dependent profile; etaWidth is the width of the eta profile
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     float eta = (float)ieta * DETA  - ((float)(DIM_ETA-1)) / 2.0 * DETA;
     //here we use a the same profile as GPU-VH (see arXiv:1608.06577v1 p. 38)
@@ -235,23 +237,23 @@ void readEnergyDensityTRENTOBlock(float *density, parameters params)
   }
 }
 
-void initialize2Gaussians(float *density, float bx, float by, float beta, parameters params) // bx is the x variance etc...
+void initialize2Gaussians(float *density, float bx, float by, float beta, const parameters & params) // bx is the x variance etc...
 {
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float DX = params.DX;
   float DY = params.DY;
   float DETA = params.DETA;
 
   float e0 = 0.0; //energy norm factor in fm^(-4) : roughly 500 MeV Temperature
 
-  for (int is = 0; is < DIM; is++)
+  for (size_t is = 0; is < DIM; is++)
   {
-    int ix = (is % DIM_X);
-    int iy = ((is / DIM_X) % DIM_Y);
-    int ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
+    size_t ix = (is % DIM_X);
+    size_t iy = ((is / DIM_X) % DIM_Y);
+    size_t ieta = ((is / DIM_X / DIM_Y) % DIM_ETA);
 
     //does it work for even number of points?
     float x = (float)ix * DX  - ((float)(DIM_X-1)) / 2.0 * DX;
@@ -271,14 +273,14 @@ void initialize2Gaussians(float *density, float bx, float by, float beta, parame
   }
 }
 
-void readEnergyDensityTRENTO3DBlock(float *density, parameters params)
+void readEnergyDensityTRENTO3DBlock(float *density, const parameters & params)
 {
   float lower_tolerance = 1.0e-3;
 
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float ETA_WIDTH = params.ETA_WIDTH;
   float ETA_FLAT = params.ETA_FLAT;
   float DETA = params.DETA;
@@ -292,13 +294,13 @@ void readEnergyDensityTRENTO3DBlock(float *density, parameters params)
     //skip the eight line (l) header
     //std::string line;
     //for (int l = 0; l < 8; l++) getline(superMCFile, line);
-    for (int ix = 0; ix < DIM_X; ix++)
+    for (size_t ix = 0; ix < DIM_X; ix++)
     {
-      for (int iy = 0; iy < DIM_Y; iy++)
+      for (size_t iy = 0; iy < DIM_Y; iy++)
       {
-        for (int ieta = 0; ieta < DIM_ETA; ieta++)
+        for (size_t ieta = 0; ieta < DIM_ETA; ieta++)
         {
-          int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
+          size_t is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
           superMCFile >> temp;
           density[is] = temp + lower_tolerance;
         }
@@ -313,15 +315,15 @@ void readEnergyDensityTRENTO3DBlock(float *density, parameters params)
   superMCFile.close();
 }
 
-void readEnergyDensityCPUVH(float *density, parameters params)
+void readEnergyDensityCPUVH(float *density, const parameters & params)
 {
   float lower_tolerance = 1.0e-7;
   float scale_factor = 1.0;
 
-  int DIM = params.DIM;
-  int DIM_X = params.DIM_X;
-  int DIM_Y = params.DIM_Y;
-  int DIM_ETA = params.DIM_ETA;
+  size_t DIM = params.DIM;
+  size_t DIM_X = params.DIM_X;
+  size_t DIM_Y = params.DIM_Y;
+  size_t DIM_ETA = params.DIM_ETA;
   float ETA_WIDTH = params.ETA_WIDTH;
   float ETA_FLAT = params.ETA_FLAT;
   float DETA = params.DETA;
@@ -333,13 +335,13 @@ void readEnergyDensityCPUVH(float *density, parameters params)
   superMCFile.open("initial_profiles/e.dat");
   if (superMCFile.is_open())
   {
-    for (int ieta = 0; ieta < DIM_ETA; ieta++)
+    for (size_t ieta = 0; ieta < DIM_ETA; ieta++)
     {
-      for (int iy = 0; iy < DIM_Y; iy++)
+      for (size_t iy = 0; iy < DIM_Y; iy++)
       {
-        for (int ix = 0; ix < DIM_X; ix++)
+        for (size_t ix = 0; ix < DIM_X; ix++)
         {
-          int is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
+          size_t is = ix + (DIM_X * iy) + (DIM_X * DIM_Y * ieta); //the column packed index spanning x, y, z
           superMCFile >> dummy >> dummy >> dummy >> temp;
           density[is] = temp * scale_factor + lower_tolerance;
         }

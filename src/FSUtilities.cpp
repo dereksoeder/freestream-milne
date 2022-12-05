@@ -1,6 +1,6 @@
-#pragma once
+#include <stddef.h>
 #include <math.h>
-#include "Parameter.h"
+#include "FSUtilities.h"
 
 float linearInterp3D(float x0, float x1, float x2,
                       float a000, float a100, float a010, float a001,
@@ -26,13 +26,13 @@ float linearInterp2D(float x0, float x1,
   result = ((1-x0) * (1-x1) * a00)
             + ((x0) * (1-x1) * a10)
             + ((1-x0) * (x1) * a01)
-            + ((x0) * (x1) * a11));
+            + ((x0) * (x1) * a11);
 
   return result;
 }
 
-int linearIndex(int ix, int iy, int iz, int dimx, int dimy)
+size_t linearIndex(size_t ix, size_t iy, size_t iz, size_t dimx, size_t dimy)
 {
-  int is = ix + (dimx * iy) + (dimx * dimy * iz);
+  size_t is = ix + (dimx * iy) + (dimx * dimy * iz);
   return is;
 }

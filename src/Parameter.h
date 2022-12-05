@@ -1,4 +1,7 @@
 #pragma once
+
+#include <stddef.h>  // for size_t
+
 struct parameters
 {
   int OUTPUTFORMAT;
@@ -9,11 +12,11 @@ struct parameters
   float ETA_FLAT;
   float SIGMA;
   float SIGMA_B;
-  int DIM_X;
-  int DIM_Y;
-  int DIM_ETA;
-  int DIM_RAP;
-  int DIM_PHIP;
+  size_t DIM_X;
+  size_t DIM_Y;
+  size_t DIM_ETA;
+  size_t DIM_RAP;
+  size_t DIM_PHIP;
   float DX;
   float DY;
   float DETA;
@@ -28,6 +31,6 @@ struct parameters
   float TAU_R;
   float ALPHA;
   //these are computed based on the chosen parameters above; they are constrained
-  int DIM;
+  size_t DIM;
   float TAU;
 };

@@ -1,8 +1,10 @@
-#include "FreestreamMilne.cpp"
+#include <stddef.h>
+#include <stdio.h>
+#include "FreestreamMilne.h"
 
 int main(int argc, const char ** argv)
 {
-  const char * inputPath = NULL;
+  const char * inputPath = nullptr;
   if (argc > 1) inputPath = argv[1];
 
   //Declare an instance of FREESTREAMMILNE class

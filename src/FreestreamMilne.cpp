@@ -1,22 +1,22 @@
 //This file contains a wrapper class for freestream-milne
 
-#ifndef SRC_FREESTREAMMILNE_
-#define SRC_FREESTREAMMILNE_
-
-//#include "Parameter.h"
+#include "Parameter.h"
+#include "FreestreamMilne.h"
+#include "EquationOfState.h"
+#include "FileIO.h"
+#include "FreeStream.h"
+#include "InitialConditions.h"
+#include "HydroValidity.h"
+#include "LandauMatch.h"
+#include "Memoryf.h"
 #include "FSConfig.h"
-#include "FreeStream.cpp"
-#include "InitialConditions.cpp"
-#include "LandauMatch.cpp"
-#include "EquationOfState.cpp"
-#include "HydroValidity.cpp"
-#include "Memoryf.cpp"
-#include "FileIO.cpp"
-//#include "WriteHistory.cpp"
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 
+#include <fstream>
+#include <iostream>
 #include <vector>
 
 #ifdef _OPENMP
@@ -24,67 +24,6 @@
 #endif
 
 using namespace std;
-
-class FREESTREAMMILNE {
- private:
-
- public:
-    FREESTREAMMILNE();
-    ~FREESTREAMMILNE();
-
-    int run_freestream_milne(const char * inputPath = NULL);
-
-    // IS THIS VARIABLE NECESSARY
-    int gridSize; //the total number of grid points in x, y, and eta : used for vector memory allocation
-
-    //the total freestreaming time, useful for passing to JETSCAPE
-    float tau_LandauMatch;
-
-    //support to initilialize the energy density from a vector - useful for JETSCAPE
-    //note units of argument should be GeV / fm^3
-    //then we convert to fm^(-4)
-    void initialize_from_vector(std::vector<float>);
-    std::vector<float> init_energy_density;
-
-    //support to write final hydro variables to vectors - useful for JETSCAPE
-    //note we need to convert back to GeV / fm^3 units here
-    void output_to_vectors(std::vector<double>&, //e
-                            std::vector<double>&, //p
-                            std::vector<double>&, //ut
-                            std::vector<double>&, //ux
-                            std::vector<double>&, //uy
-                            std::vector<double>&, //un
-                            std::vector<double>&, //pitt
-                            std::vector<double>&, //pitx
-                            std::vector<double>&, //pity
-                            std::vector<double>&, //pitn
-                            std::vector<double>&, //pixx
-                            std::vector<double>&, //pixy
-                            std::vector<double>&, //pixn
-                            std::vector<double>&, //piyy
-                            std::vector<double>&, //piyn
-                            std::vector<double>&, //pinn
-                            std::vector<double>&); //Pi
-
-    std::vector<double> final_energy_density;
-    std::vector<double> final_pressure;
-    std::vector<double> final_ut;
-    std::vector<double> final_ux;
-    std::vector<double> final_uy;
-    std::vector<double> final_un;
-    std::vector<double> final_pitt;
-    std::vector<double> final_pitx;
-    std::vector<double> final_pity;
-    std::vector<double> final_pitn;
-    std::vector<double> final_pixx;
-    std::vector<double> final_pixy;
-    std::vector<double> final_pixn;
-    std::vector<double> final_piyy;
-    std::vector<double> final_piyn;
-    std::vector<double> final_pinn;
-    std::vector<double> final_Pi;
-
-};
 
 FREESTREAMMILNE::FREESTREAMMILNE() {
 
@@ -177,14 +116,14 @@ readInParameters(params, inputPath);
 params.DIM = params.DIM_X * params.DIM_Y * params.DIM_ETA;
 params.TAU = params.TAU0 + params.DTAU;
 
-int DIM_X = params.DIM_X;
-int DIM_Y = params.DIM_Y;
-int DIM_ETA = params.DIM_ETA;
+size_t DIM_X = params.DIM_X;
+size_t DIM_Y = params.DIM_Y;
+size_t DIM_ETA = params.DIM_ETA;
 
 if(PRINT_SCREEN)
   {
     printf("Parameters are ...\n");
-    printf("(DIM_X, DIM_Y, DIM_ETA, DIM_PHIP, DIM_RAP) = (%d, %d, %d, %d, %d)\n", params.DIM_X, params.DIM_Y, params.DIM_ETA, params.DIM_PHIP, params.DIM_RAP);
+    printf("(DIM_X, DIM_Y, DIM_ETA, DIM_PHIP, DIM_RAP) = (%zu, %zu, %zu, %zu, %zu)\n", params.DIM_X, params.DIM_Y, params.DIM_ETA, params.DIM_PHIP, params.DIM_RAP);
     printf("(DX, DY, DETA, DTAU) = (%.2f fm, %.2f fm, %.2f, %.2f fm/c)\n", params.DX, params.DY, params.DETA, params.DTAU);
     printf("TAU0 = %.2f fm/c\n", params.TAU0);
     printf("SIGMA = %.2f \n", params.SIGMA);
@@ -207,19 +146,19 @@ if(PRINT_SCREEN)
 if (PRINT_SCREEN) printf("Allocating memory\n");
 
 //the initial energy density spatial profile
-float *initialEnergyDensity = NULL;
+float *initialEnergyDensity;
 initialEnergyDensity = (float *)calloc(params.DIM, sizeof(float));
 
 //the initial baryon density spatial profile
-float *initialChargeDensity = NULL;
+float *initialChargeDensity = nullptr;
 if(params.BARYON) initialChargeDensity = (float *)calloc(params.DIM, sizeof(float));
 
 //the initial density G(tilde)^(tau,tau) at time tau_0
-float **density = NULL;
+float **density = nullptr;
 density = calloc2dArrayf(density, params.DIM, params.DIM_RAP); // function of x,y,eta and rapidity
 
 //the initial density J(tilde)^(tau) at time tau_0
-float **chargeDensity = NULL;
+float **chargeDensity = nullptr;
 if(params.BARYON) chargeDensity = calloc2dArrayf(chargeDensity, params.DIM, params.DIM_RAP); // function of x,y,eta and rapidity
 
 //initialize energy density
@@ -259,15 +198,15 @@ else if (params.IC_ENERGY == 5)
   if ( params.DIM != init_energy_density.size() )
     {
       printf("Grid dimension of input vector does not match input file! \n");
-      printf("Vector size : %d , DIM = %d \n", init_energy_density.size(), params.DIM);
+      printf("Vector size : %zu , DIM = %zu \n", init_energy_density.size(), params.DIM);
       exit(-1);
     }
   //rescale initial distribution
   float rescale = 1.0;
-  for (int i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i] * rescale / (float)hbarc + lower_tolerance;
-  //for (int i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i] / (float)hbarc;
+  for (size_t i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i] * rescale / (float)hbarc + lower_tolerance;
+  //for (size_t i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i] / (float)hbarc;
   //just doing this here for testing - try increasing normalization of initial distribution to improve stability
-  //for (int i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i];
+  //for (size_t i = 0; i < params.DIM; i++) initialEnergyDensity[i] = init_energy_density[i];
 }
 else if (params.IC_ENERGY == 6)
 {
@@ -327,19 +266,19 @@ tau_LandauMatch = params.TAU;
 
 //now reset the number of points in phip based on freestreaming time
 float min_dx_dy = min(params.DX, params.DY);
-int nphip = int( ceil( (2.0 * M_PI * params.DTAU) / min_dx_dy ) );
-if (nphip > params.DIM_PHIP) printf("Updating number of points in phi_p to %d based on arc length \n", nphip);
+size_t nphip = size_t( ceil( (2.0 * M_PI * params.DTAU) / min_dx_dy ) );
+if (nphip > params.DIM_PHIP) printf("Updating number of points in phi_p to %zu based on arc length \n", nphip);
 params.DIM_PHIP = max(params.DIM_PHIP, nphip);
 
 
 /////////////////////////////BEGIN TESTING FOR JETSCAPE//////////////////////////////
 //make a toy plot of 1/tau * initial energy density to compare 2+1D freestreaming with only longitudinal (bjorken) dilution
-float *scaledEnergyDensity = NULL;
+float *scaledEnergyDensity = nullptr;
 if (TEST_INTERPOL)
 {
   printf("Calculating 1 / tau scaled profile for testing \n");
   scaledEnergyDensity = (float *)calloc(params.DIM, sizeof(float));
-  for (int is = 0; is < params.DIM; is++) scaledEnergyDensity[is] = initialEnergyDensity[is] * (params.TAU0 / params.TAU);
+  for (size_t is = 0; is < params.DIM; is++) scaledEnergyDensity[is] = initialEnergyDensity[is] * (params.TAU0 / params.TAU);
   writeScalarToFile(scaledEnergyDensity, (char *)"scaled_e", params);
   writeScalarToFileProjection(scaledEnergyDensity, (char *)"scaled_e_projection", params);
 }
@@ -348,24 +287,24 @@ if (TEST_INTERPOL)
 
 //calculate total energy to check convergence
 float totalEnergy = 0.0;
-for (int is = 0; is < params.DIM; is++) totalEnergy += initialEnergyDensity[is];
+for (size_t is = 0; is < params.DIM; is++) totalEnergy += initialEnergyDensity[is];
 if (params.DIM_ETA > 1) totalEnergy *= (params.TAU0 * params.DX * params.DY * params.DETA);
 else totalEnergy *= (params.DX * params.DY);
 printf("Total energy on grid before streaming : %f \n", totalEnergy);
-
 //convert the energy density profile into the initial density profile to be streamed and free memory
 convertInitialDensity(initialEnergyDensity, density, params);
+
 if (!TEST_INTERPOL) free(initialEnergyDensity);
 //convert the baryon density profile into the initial baryon density profile to be streamed and free memory
 if (params.BARYON) convertInitialChargeDensity(initialChargeDensity, chargeDensity, params);
 if (params.BARYON) free(initialChargeDensity);
 
 //the shifted energy density profile G^(tau,tau) at time tau
-float ***shiftedDensity = NULL;
+float ***shiftedDensity = nullptr;
 shiftedDensity = calloc3dArrayf(shiftedDensity, params.DIM, params.DIM_RAP, params.DIM_PHIP);
 
 //the shifted baryon density profile J^(tau) at time tau
-float ***shiftedChargeDensity = NULL;
+float ***shiftedChargeDensity = nullptr;
 if(params.BARYON) shiftedChargeDensity = calloc3dArrayf(shiftedChargeDensity, params.DIM, params.DIM_RAP, params.DIM_PHIP);
 
 //perform the free streaming time-update step and free up memory
@@ -396,16 +335,16 @@ if (PRINT_SCREEN) printf("Free streaming took %f seconds\n", sec);
 if (PRINT_SCREEN) printf("Landau matching to find hydrodynamic variables\n");
 
 //the ten independent components of the stress tensor
-float **stressTensor = NULL;
+float **stressTensor = nullptr;
 stressTensor = calloc2dArrayf(stressTensor, 10, params.DIM);
 
 //the four independent components of baryon current four-vector
-float **baryonCurrent = NULL;
+float **baryonCurrent = nullptr;
 if(params.BARYON) baryonCurrent = calloc2dArrayf(baryonCurrent, 4, params.DIM);
 
 //a table containing 10 rows for 10 independent combinations of p_(mu)p_(nu)
 //hypertrig table depends on TAU, so need to keep this inside loop
-float ****hypertrigTable = NULL;
+float ****hypertrigTable = nullptr;
 hypertrigTable = calloc4dArrayf(hypertrigTable, 10, params.DIM_RAP, params.DIM_PHIP, params.DIM_ETA); //depends on eta because we have function of eta - y
 
 if (PRINT_SCREEN) printf("calculating hypertrig table\n");
@@ -443,31 +382,31 @@ free4dArrayf(hypertrigTable, 10, params.DIM_RAP, params.DIM_PHIP);
 
 //variables to store the hydrodynamic variables after the Landau matching is performed
 //the energy density
-float *energyDensity = NULL;
+float *energyDensity;
 energyDensity = (float *)calloc(params.DIM, sizeof(float));
 
 //the baryon density
-float *baryonDensity = NULL;
+float *baryonDensity = nullptr;
 if(params.BARYON) baryonDensity = (float *)calloc(params.DIM, sizeof(float));
 
 //the flow velocity
-float **flowVelocity = NULL;
+float **flowVelocity = nullptr;
 flowVelocity = calloc2dArrayf(flowVelocity, 4, params.DIM);
 
 //the pressure
-float *pressure = NULL;
+float *pressure;
 pressure = (float *)calloc(params.DIM, sizeof(float));
 
 //the bulk pressure Pi
-float *bulkPressure = NULL;
+float *bulkPressure;
 bulkPressure = (float *)calloc(params.DIM, sizeof(float));
 
 //the shear stress tensor
-float **shearTensor = NULL;
+float **shearTensor = nullptr;
 shearTensor = calloc2dArrayf(shearTensor, 10, params.DIM); //calculate 10 components, can check tracelessness/orthogonality for accuracy
 
 //the baryon diffusion current vector
-float **baryonDiffusion = NULL;
+float **baryonDiffusion = nullptr;
 if(params.BARYON) baryonDiffusion = calloc2dArrayf(baryonDiffusion, 4, params.DIM);
 
 //solve the eigenvalue problem for the energy density and flow velocity
@@ -516,7 +455,7 @@ if (TEST_INTERPOL)
   float tau_i = TAU0 + (DTAU / 2.0); //some intermediate time
   float c_1 = (TAU0 / tau_i);
   float c_2 = (tau_i - TAU0) / DTAU / tau_i;
-  for (int is = 0; is < params.DIM; is++) scaledEnergyDensity[is] = c_1 * initialEnergyDensity[is] + c_2 * ((TAU * energyDensity[is] - TAU0 * initialEnergyDensity[is]));
+  for (size_t is = 0; is < params.DIM; is++) scaledEnergyDensity[is] = c_1 * initialEnergyDensity[is] + c_2 * ((TAU * energyDensity[is] - TAU0 * initialEnergyDensity[is]));
   writeScalarToFile(scaledEnergyDensity, (char *)"tau_interpolated_e", params);
   writeScalarToFileProjection(scaledEnergyDensity, (char *)"tau_interpolated_e_projection", params);
   free(scaledEnergyDensity);
@@ -529,14 +468,14 @@ if (TEST_INTERPOL)
 ///////////  END LOOP OVER TIME STEPS HERE ////////////////////////
 
 float totalEnergyAfter = 0.0;
-for (int is = 0; is < params.DIM; is++) totalEnergyAfter += stressTensor[0][is];
+for (size_t is = 0; is < params.DIM; is++) totalEnergyAfter += stressTensor[0][is];
 if (params.DIM_ETA > 1) totalEnergyAfter *= (params.TAU * params.DX * params.DY * params.DETA);
 else totalEnergyAfter *= (params.TAU * params.DX * params.DY);
 printf("Total energy on grid after streaming : %f \n", totalEnergyAfter);
 
 //check which fraction of total energy lies within freezeout surface, which lies in 'corona'
 float totalEnergyInsideHypersurf = 0.0;
-for (int is = 0; is < params.DIM; is++)
+for (size_t is = 0; is < params.DIM; is++)
 {
   //if ( (energyDensity[is] * hbarc) > params.E_FREEZE) totalEnergyInsideHypersurf += energyDensity[is];
   if ( (energyDensity[is] * hbarc) > params.E_FREEZE) totalEnergyInsideHypersurf += stressTensor[0][is];
@@ -554,16 +493,16 @@ energy_file.close();
 
 //////////////////////////////////HYDRO VALIDITY//////////////////////////////////
 //bulk inv reynolds #
-float *R_Pi_Inv = NULL;
+float *R_Pi_Inv;
 R_Pi_Inv = (float *)calloc(params.DIM, sizeof(float));
 //shear inv reynolds #
-float *R_pimunu_Inv = NULL;
+float *R_pimunu_Inv;
 R_pimunu_Inv = (float *)calloc(params.DIM, sizeof(float));
 calculateBulkInvReynolds(pressure, bulkPressure, R_Pi_Inv, params);
 calculateShearInvReynolds(energyDensity, pressure, shearTensor, R_pimunu_Inv, params);
 writeScalarToFileProjection(R_Pi_Inv, (char *)"R_Pi_Inv_projection", params);
 writeScalarToFileProjection(R_pimunu_Inv, (char *)"R_pimunu_Inv_projection", params);
-int ctr = ((DIM_X - 1) / 2) + (DIM_X * ((DIM_Y - 1) / 2)) + (DIM_X * DIM_Y * ((DIM_ETA - 1) / 2));
+size_t ctr = ((DIM_X - 1) / 2) + (DIM_X * ((DIM_Y - 1) / 2)) + (DIM_X * DIM_Y * ((DIM_ETA - 1) / 2));
 printf("R_Pi_Inv at center : %f \n", R_Pi_Inv[ctr]);
 printf("R_pimunu_Inv at center : %f \n", R_pimunu_Inv[ctr]);
 free(R_Pi_Inv);
@@ -572,13 +511,13 @@ free(R_pimunu_Inv);
 
 //check transversality and tracelesness
 //components of pi^munu u_mu
-float *pi_dot_u_tau = NULL;
+float *pi_dot_u_tau;
 pi_dot_u_tau = (float *)calloc(params.DIM, sizeof(float));
-float *pi_dot_u_x = NULL;
+float *pi_dot_u_x;
 pi_dot_u_x = (float *)calloc(params.DIM, sizeof(float));
-float *pi_dot_u_y = NULL;
+float *pi_dot_u_y;
 pi_dot_u_y = (float *)calloc(params.DIM, sizeof(float));
-float *pi_dot_u_eta = NULL;
+float *pi_dot_u_eta;
 pi_dot_u_eta = (float *)calloc(params.DIM, sizeof(float));
 
 calculate_pi_dot_u(flowVelocity, shearTensor, pi_dot_u_tau, pi_dot_u_x, pi_dot_u_y, pi_dot_u_eta, params);
@@ -593,7 +532,7 @@ free(pi_dot_u_y);
 free(pi_dot_u_eta);
 
 //trace of pi^munu , pi^mu_mu
-float *pi_mu_mu = NULL;
+float *pi_mu_mu;
 pi_mu_mu = (float *)calloc(params.DIM, sizeof(float));
 
 calculate_pi_mu_mu(shearTensor, pi_mu_mu, params);
@@ -606,9 +545,9 @@ free(pi_mu_mu);
 
 ////////////////////////////////////VORTICITY/////////////////////////////////////
 
-float **thermalVorticityTensor = NULL;
+float **thermalVorticityTensor = nullptr;
 thermalVorticityTensor = calloc2dArrayf(thermalVorticityTensor, 6, params.DIM);
-float **thermalVelocityVector = NULL;
+float **thermalVelocityVector = nullptr;
 thermalVelocityVector = calloc2dArrayf(thermalVelocityVector, 4, params.DIM);
 calculateThermalVorticityTensor(energyDensity, flowVelocity, thermalVelocityVector, thermalVorticityTensor, params);
 
@@ -694,7 +633,7 @@ final_Pi.resize(params.DIM);
 
 if ( (params.OUTPUTFORMAT == 2) || (params.OUTPUTFORMAT == 3) )
 {
-  for (int is = 0; is < params.DIM; is++)
+  for (size_t is = 0; is < params.DIM; is++)
   {
     //converting back to GeV / fm^3 for use in JETSCAPE
     final_energy_density[is] = (double)energyDensity[is] * hbarc;
@@ -739,5 +678,3 @@ if (PRINT_SCREEN) printf("Done... Goodbye!\n");
 //change this to return a different int status if something goes wrong?
 return 0;
 }
-
-#endif  // SRC_FREESTREAMMILNE_
