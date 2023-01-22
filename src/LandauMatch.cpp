@@ -47,7 +47,7 @@ void calculateHypertrigTable(float ****hypertrigTable, const parameters & params
 
         //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
         //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
-        float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
+        float w =  (DIM_RAP <= 1) ? 0. : -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
         float rap = eta + tan((M_PI / 2.0) * w );
         if (DIM_ETA == 1) rap = 0.0;
         //try evaluating at values of rapidity y centered around y ~= eta
@@ -90,8 +90,8 @@ void calculateStressTensor(float **stressTensor, float ***shiftedDensity, float 
     //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
     //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
     //jacobian[irap] = (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.995 / float(DIM_RAP - 1));
-    float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // changed for consistency with hypertrigTable
-    jacobian[irap] = (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.95 / float(DIM_RAP - 1));
+    float w =  (DIM_RAP <= 1) ? 0. : -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // changed for consistency with hypertrigTable
+    jacobian[irap] = (DIM_RAP <= 1) ? 1. : (M_PI/2.0) / cos( (M_PI/2.0)*w ) / cos( (M_PI/2.0)*w ) * (1.95 / float(DIM_RAP - 1));
   }
 
   float d_phip = (2.0 * M_PI) / float(DIM_PHIP);

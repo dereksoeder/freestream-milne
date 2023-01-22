@@ -153,7 +153,7 @@ void freeStream(float **density, float ***shiftedDensity, const parameters & par
 
       //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
       //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
-      float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least sinh and cosh won't return nan (float is limited to ~3.4E+38)
+      float w =  (DIM_RAP <= 1) ? 0. : -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least sinh and cosh won't return nan (float is limited to ~3.4E+38)
       float rap = eta + tan((M_PI / 2.0) * w );
 
       float eta_new;
@@ -293,7 +293,7 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, const p
   //float DRAP = params.DRAP;
   float DETA = params.DETA;
 
-  float n = sqrt(M_PI / 2.0) * SIGMA * (1.0 + exp(2.0 * SIGMA * SIGMA)); //the integral over cosh^2 * exp()
+  float n = (SIGMA <= 0.) ? 1. : sqrt(M_PI / 2.0) * SIGMA * (1.0 + exp(2.0 * SIGMA * SIGMA)); //the integral over cosh^2 * exp()
   float norm_factor = 1.0 / (2.0 * M_PI * n); //the normalization constant relating the intial energy density to the intial density profile G(tilde)^(tau,tau)
 
   //float rapmin = (-1.0) * ((float)(DIM_RAP-1) / 2.0) * DRAP;
@@ -334,10 +334,10 @@ void convertInitialDensity(float *initialEnergyDensity, float **density, const p
 
         //w is an integration variable on the domain (-1,1) - careful not to include endpoints (nans)
         //float w =  -.9975 + (float)irap * (1.995 / (float)(DIM_RAP - 1));
-        float w =  -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
+        float w =  (DIM_RAP <= 1) ? 0. : -.975 + (float)irap * (1.95 / (float)(DIM_RAP - 1));  // still allows extreme rapidities (~25), but at least cosh won't return nan (float is limited to ~3.4E+38)
         float rap = eta + tan((M_PI / 2.0) * w );
 
-        float rap_factor = cosh(eta - rap) * cosh(eta - rap) * exp( (-1.0) * (eta - rap) * (eta - rap) / (2.0 * SIGMA * SIGMA) );
+        float rap_factor = (SIGMA <= 0.) ? 1. : cosh(eta - rap) * cosh(eta - rap) * exp( (-1.0) * (eta - rap) * (eta - rap) / (2.0 * SIGMA * SIGMA) );
         density[is][irap] = initialEnergyDensity[is] * norm_factor * rap_factor; //this is initial G^(tau,tau)
       }
     }
@@ -357,7 +357,7 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
   float DRAP = params.DRAP;
   float DETA = params.DETA;
 
-  float n = sqrt(2.0 * M_PI) * SIGMA_B * exp(SIGMA_B * SIGMA_B / 2.0); //the integral over cosh * exp()
+  float n = (SIGMA_B <= 0.) ? 1. : sqrt(2.0 * M_PI) * SIGMA_B * exp(SIGMA_B * SIGMA_B / 2.0); //the integral over cosh * exp()
   float norm_factor = 1.0 / (2.0 * M_PI * n); //the normalization constant relating the intial baryon density to the intial charge density profile J(tilde)^(tau)
 
   float rapmin = (-1.0) * ((float)(DIM_RAP-1) / 2.0) * DRAP;
@@ -374,7 +374,7 @@ void convertInitialChargeDensity(float *initialChargeDensity, float **chargeDens
     for (size_t irap = 0; irap < DIM_RAP; irap++)
     {
       float rap = (float)irap * DRAP + rapmin;
-      float rap_factor = cosh(eta - rap) * exp((-1.0) * (eta - rap) * (eta - rap) / (SIGMA_B * SIGMA_B));
+      float rap_factor = (SIGMA_B <= 0.) ? 1. : cosh(eta - rap) * exp((-1.0) * (eta - rap) * (eta - rap) / (SIGMA_B * SIGMA_B));
       chargeDensity[is][irap] = initialChargeDensity[is] * norm_factor * rap_factor; //this is initial J^(tau)
     }
 
