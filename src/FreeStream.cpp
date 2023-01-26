@@ -163,7 +163,7 @@ void freeStream(float **density, float ***shiftedDensity, const parameters & par
       }
       else if (DIM_ETA > 1)
       {
-        eta_new = asinh( (TAU / TAU0) * sinh(eta - rap) ) + rap; //old formula works
+        eta_new = asinh( (TAU0 / TAU) * sinh(eta - rap) ) + rap;
       }
 
       float coshrapeta    = cosh(rap - eta);
